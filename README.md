@@ -5,6 +5,11 @@
 Master's Thesis · M.Sc. Data Science · Kiel University of Applied Sciences · 2026
 Author: **Gamze Önder**
 
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)
+![PyG](https://img.shields.io/badge/PyTorch%20Geometric-3C2179)
+![Status](https://img.shields.io/badge/code-not%20public-lightgrey)
+
 ---
 
 This repository gives an overview of my master's thesis. It explains the problem, method, experiments and main results, and describes how the code base is organized.
@@ -23,13 +28,14 @@ This repository gives an overview of my master's thesis. It explains the problem
 - [Project Structure](#project-structure)
 - [Tech Stack](#tech-stack)
 - [Citation](#citation)
+- [References](#references)
 - [Acknowledgements](#acknowledgements)
 
 ## Overview
 
-Learning-based placement methods, especially deep reinforcement learning (DRL) approaches such as the chip-placement work of [Mirhoseini et al.](https://www.nature.com/articles/s41586-021-03544-w) ([Circuit Training / AlphaChip](https://github.com/google-research/circuit_training)), have shown strong results in VLSI design. Their performance depends heavily on the **state encoder**: the network that turns the current layout into a compact representation the agent can act on.
+Learning-based placement methods, especially deep reinforcement learning (DRL) approaches such as the chip-placement work of Mirhoseini et al. [[5]](#references) ([Circuit Training / AlphaChip](https://github.com/google-research/circuit_training)), have shown strong results in VLSI design. Graph neural network encoders have also been used for layout planning in other domains [[6]](#references). The performance of these methods depends heavily on the **state encoder**: the network that turns the current layout into a compact representation the agent can act on.
 
-Power module layouts are harder than VLSI placement in one important way. Their quality depends on **coupled thermal and electrical effects**, not only on geometric objectives such as wirelength. This thesis asks whether graph-based encoders designed for VLSI placement can be adapted to **2D SiC power module layouts** and learn physically meaningful representations of them.
+Power module layouts are harder than VLSI placement in one important way. Their quality depends on **coupled thermal and electrical effects**, not only on geometric objectives such as wirelength [[1–3]](#references). This thesis asks whether graph-based encoders designed for VLSI placement can be adapted to **2D SiC power module layouts** and learn physically meaningful representations of them.
 
 The thesis focuses on the **encoder stage** of a future RL framework. The encoder is pretrained with supervised learning to predict simulation-derived thermal and electrical layout metrics. The full RL loop (policy and value networks, reward design, PPO training) is outside the scope of this work.
 
@@ -83,7 +89,7 @@ Each layout is converted into a graph:
 
 ### Encoder architecture
 
-The main encoder is a **GINE** (Graph Isomorphism Network with Edge features) network, which uses edge attributes directly in message passing. GraphSAGE is used as a baseline.
+The main encoder is a **GINE** (Graph Isomorphism Network with Edge features) network [[7, 8]](#references), which uses edge attributes directly in message passing. GraphSAGE [[9]](#references) is used as a baseline.
 
 ```mermaid
 flowchart LR
@@ -108,10 +114,69 @@ $$z_i = [\,g_\text{node},\ e_\text{mean},\ h_\text{cur},\ m_\text{emb}\,]$$
 
 These are the pooled node representation, an edge-level summary, the embedding of the currently active component, and the encoded layout metadata. The regression head is used only during supervised pretraining. In a future RL setting it is removed, and $z_i$ becomes the agent's state representation.
 
+<details>
+<summary><b>Code excerpt: building the state embedding (simplified)</b></summary>
+
+```python
+import torch
+import torch.nn as nn
+from torch_geometric.nn import GINEConv, global_add_pool
+from torch_scatter import scatter_mean
+
+
+class GINEStateEncoder(nn.Module):
+    """Simplified version of the thesis encoder: layout graph -> state embedding z."""
+
+    def __init__(self, node_in=15, edge_in=7, meta_in=9, hidden=64, num_layers=2):
+        super().__init__()
+        self.node_encoder = nn.Linear(node_in, hidden)
+        self.edge_encoder = nn.Linear(edge_in, hidden)
+        self.convs = nn.ModuleList(
+            GINEConv(
+                nn.Sequential(
+                    nn.Linear(hidden, hidden), nn.BatchNorm1d(hidden),
+                    nn.ReLU(), nn.Linear(hidden, hidden),
+                ),
+                edge_dim=hidden,
+            )
+            for _ in range(num_layers)
+        )
+        self.edge_mlp = nn.Sequential(nn.Linear(2 * hidden + edge_in, hidden), nn.ReLU())
+        self.meta_encoder = nn.Sequential(nn.Linear(meta_in, hidden), nn.ReLU(), nn.Linear(hidden, hidden))
+
+    def forward(self, data):
+        x = self.node_encoder(data.x)
+        edge_attr = self.edge_encoder(data.edge_attr)
+
+        # Edge-aware message passing
+        for conv in self.convs:
+            x = torch.relu(conv(x, data.edge_index, edge_attr))
+
+        # 1) Pooled node representation
+        g_node = global_add_pool(x, data.batch)
+
+        # 2) Edge-level summary
+        src, dst = data.edge_index
+        e = self.edge_mlp(torch.cat([x[src], x[dst], data.edge_attr], dim=-1))
+        e_mean = scatter_mean(e, data.batch[src], dim=0)
+
+        # 3) Embedding of the currently active component
+        h_cur = x[data.current_macro_idx + data.ptr[:-1]]
+
+        # 4) Encoded layout metadata
+        m_emb = self.meta_encoder(data.meta)
+
+        return torch.cat([g_node, e_mean, h_cur, m_emb], dim=-1)  # state embedding z
+```
+
+> ⚠️ This is a shortened illustration of the architecture described above. The full implementation (graph construction from simulation data, feature schema, training pipeline, HPO and evaluation) is not publicly available.
+
+</details>
+
 ### Training
 
 - Graph-level regression, single-target and multi-target
-- Adam optimizer, learning-rate scheduler, early stopping on validation MAE
+- Adam optimizer [[11]](#references), learning-rate scheduler, early stopping on validation MAE
 - Loss functions: MAE, MSE, Smooth L1 / Huber
 - Target normalization: none, z-score, min-max
 - Metrics (MAE, RMSE, R²) are computed on the original physical scale
@@ -202,7 +267,7 @@ The implementation is organized as a modular Python library plus experiment note
 
 ## Tech Stack
 
-Python · PyTorch · PyTorch Geometric · NumPy · pandas · scikit-learn · Matplotlib · Jupyter
+Python · PyTorch · PyTorch Geometric [[10]](#references) · NumPy · pandas · scikit-learn · Matplotlib · Jupyter
 
 ## Citation
 
@@ -216,6 +281,22 @@ Python · PyTorch · PyTorch Geometric · NumPy · pandas · scikit-learn · Mat
   type   = {Master's Thesis}
 }
 ```
+
+## References
+
+A selection of the main references. The full bibliography is in the thesis.
+
+1. R. Rassmann, Y. Shen, X. Dong, U. Schuemann, and R. Mallwitz, "Optimization of semiconductor bare die positions within multi-chip power modules," in *PCIM Conference 2025*, VDE, 2025, pp. 1830–1838.
+2. R. Rassmann et al., "Automated electrical and thermal optimization of conventional multi-chip power modules," in *CIPS 2026; 14th International Conference on Integrated Power Electronics Systems*, 2026, pp. 749–757.
+3. R. Rassmann et al., "A holistic optimization approach for ANPC power modules in high-performance applications," in *CIPS 2026*, 2026, pp. 342–350.
+4. D. S. Lopera, L. Servadei, G. N. Kiprit, S. Hazra, R. Wille, and W. Ecker, "A survey of graph neural networks for electronic design automation," in *2021 ACM/IEEE 3rd Workshop on Machine Learning for CAD (MLCAD)*, IEEE, 2021.
+5. A. Mirhoseini et al., "A graph placement methodology for fast chip design," *Nature*, vol. 594, no. 7862, pp. 207–212, 2021.
+6. L. Kaven, A. Göppert, and R. H. Schmitt, "Graph neural network encoder for layout planning and scheduling in line-less mobile assembly systems," *Procedia CIRP*, vol. 120, pp. 63–68, 2023.
+7. K. Xu, W. Hu, J. Leskovec, and S. Jegelka, "How powerful are graph neural networks?" in *ICLR*, 2019.
+8. W. Hu et al., "Strategies for pre-training graph neural networks," *arXiv:1905.12265*, 2019.
+9. W. Hamilton, Z. Ying, and J. Leskovec, "Inductive representation learning on large graphs," in *NeurIPS*, vol. 30, 2017.
+10. M. Fey and J. E. Lenssen, "Fast graph representation learning with PyTorch Geometric," *arXiv:1903.02428*, 2019.
+11. D. P. Kingma and J. Ba, "Adam: A method for stochastic optimization," *arXiv:1412.6980*, 2014.
 
 ## Acknowledgements
 
