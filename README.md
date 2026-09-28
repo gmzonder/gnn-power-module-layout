@@ -24,6 +24,8 @@ This repository gives an overview of my master's thesis. It explains the problem
 - [Method](#method)
 - [Experiments](#experiments)
 - [Key Results](#key-results)
+- [Discussion](#discussion)
+- [Conclusion](#conclusion)
 - [Limitations and Future Work](#limitations-and-future-work)
 - [Project Structure](#project-structure)
 - [Tech Stack](#tech-stack)
@@ -110,7 +112,7 @@ flowchart LR
 
 The final state embedding combines four parts:
 
-$$z_i = [\,g_\text{node},\ e_\text{mean},\ h_\text{cur},\ m_\text{emb}\,]$$
+$$z_i = \left[ g_{\mathrm{node}},\ e_{\mathrm{mean}},\ h_{\mathrm{cur}},\ m_{\mathrm{emb}} \right]$$
 
 These are the pooled node representation, an edge-level summary, the embedding of the currently active component, and the encoded layout metadata. The regression head is used only during supervised pretraining. In a future RL setting it is removed, and $z_i$ becomes the agent's state representation.
 
@@ -194,18 +196,18 @@ class GINEStateEncoder(nn.Module):
 
 **Selected multi-target vector** (reliability, thermal homogeneity, thermal interaction, electrical):
 
-$$y_i = \left(D_{\text{lin,norm}},\ F_{TH},\ F_{TIH},\ L_{\text{loop}}\right)$$
+$$y_i = \left( D_{\mathrm{lin,norm}},\ F_{TH},\ F_{TIH},\ L_{\mathrm{loop}} \right)$$
 
 **HPO search space:** hidden dimension {16, 32, 64, 128} · GINE layers {1–4} · dropout {0–0.4} · pooling {add, mean, max} · loss {MAE, MSE, Huber} · batch size · learning-rate factor.
 
 ## Key Results
 
-- **Graph encoders transfer to power modules.** An edge-aware GINE encoder learns meaningful relationships between layout graphs and physical targets (RQ1).
-- **Loop inductance is captured very well.** $L_\text{loop}$ reached a **validation R² of 0.994–0.999** and a **test R² of 0.88–0.90**, depending on the normalization.
-- **One shared embedding for several objectives.** The multi-target model predicts reliability, thermal and electrical metrics at the same time, which is what a future RL state representation needs (RQ2).
-- **Normalization matters.** Z-score normalization was the most consistent. Min-max compressed predictions when the data did not cover the full target range.
+- **Graph encoders transfer to power modules.** An edge-aware GINE encoder learns meaningful relationships between layout graphs and selected thermal and electrical targets.
+- **Loop inductance is captured very well.** $L_{\mathrm{loop}}$ reached a **validation R² of 0.994–0.999** and a **test R² of 0.88–0.90**, depending on the normalization.
+- **One shared embedding for several objectives.** The multi-target model predicts reliability, thermal and electrical metrics at the same time.
+- **Normalization matters.** Z-score normalization was the most consistent. Min-max compressed predictions into narrow bands when the data did not cover the full target range.
 - **Rotation robustness must be learned.** A model trained on one orientation formed separate prediction clusters for rotated layouts. Adding rotated variants to training fixed this for an unseen 90° orientation.
-- **Consistent best configuration.** The best HPO configurations all used a **hidden dimension of 64, 2 GINE layers and MAE loss**. They differed in pooling and dropout.
+- **Consistent model capacity.** The best HPO configurations all used a **hidden dimension of 64, 2 GINE layers and MAE loss**. They differed in pooling and dropout.
 
 **Best HPO configuration per normalization method (validation):**
 
@@ -215,17 +217,40 @@ $$y_i = \left(D_{\text{lin,norm}},\ F_{TH},\ F_{TIH},\ L_{\text{loop}}\right)$$
 | Z-score | 0.1178 | 0.1762 | **0.873** | max | 64 | 2 | 0.3 | MAE |
 | Min-max | 0.1277 | 0.2153 | 0.868 | mean | 64 | 2 | 0.0 | MAE |
 
-**Per-target test R² (best z-score configuration):**
+**Per-target R² of the best configurations (train / validation / test):**
 
-| $D_\text{lin,norm}$ | $F_{TH}$ | $F_{TIH}$ | $L_\text{loop}$ |
+| Target | None | Z-score | Min-max |
 |---|---|---|---|
-| 0.564 | 0.703 | 0.817 | 0.880 |
+| $D_{\mathrm{lin,norm}}$ (reliability) | 0.929 / 0.821 / 0.535 | 0.953 / 0.831 / **0.564** | 0.932 / 0.820 / 0.131 |
+| $F_{TH}$ (thermal homogeneity) | 0.843 / 0.712 / 0.617 | 0.944 / 0.813 / **0.703** | 0.931 / 0.805 / 0.052 |
+| $F_{TIH}$ (thermal interaction) | 0.850 / 0.711 / 0.561 | 0.937 / 0.803 / **0.817** | 0.927 / 0.814 / 0.506 |
+| $L_{\mathrm{loop}}$ (loop inductance) | 1.000 / 0.999 / 0.875 | 0.999 / 0.995 / 0.880 | 0.998 / 0.994 / **0.901** |
 
 <!-- TODO: optionally add a prediction-vs-ground-truth figure (e.g. figures/pred_vs_gt.png) once approved -->
 
+## Discussion
+
+**Target learnability depends on the data, not only on the model.** A target can only be learned if the graph contains the information that describes it, if its values are available consistently, and if the dataset covers a representative range of layouts. Target selection is therefore part of the representation-learning problem. The selected target set reflects the current data and graph representation. It is not a general target set for all power module layouts.
+
+**Absolute temperatures are not layout-only targets.** $T_{\mathrm{avg}}$, $T_{\mathrm{max}}$, $T_{\mathrm{rms}}$ and $\Delta T$ also depend on thermal simulation settings such as power loss, ambient temperature and convection coefficients. These settings are not part of the graph input, so these targets cannot be predicted reliably when the boundary conditions change. The relative thermal metrics $F_{TH}$ and $F_{TIH}$ do not have this problem and remain learnable.
+
+**The shared embedding works, but not equally well for every target.** $L_{\mathrm{loop}}$ has consistently high test R² for every normalization method. Among the thermal objectives, $F_{TIH}$ performs best with z-score normalization. $D_{\mathrm{lin,norm}}$ and $F_{TH}$ are more sensitive to the normalization choice, and with min-max their test performance drops sharply.
+
+**No single configuration is best for all targets.** $L_{\mathrm{loop}}$ benefits from add pooling, which suggests that accumulated graph information matters for this electrical target. $F_{TIH}$ works better with mean pooling, which fits a relative thermal metric. Normalization, pooling and regularization interact, so they should be chosen together with the target set and the data.
+
+**Recommendation for a future RL agent.** Initial reinforcement learning experiments could start with a reduced objective set: **$L_{\mathrm{loop}}$ as the electrical objective and $F_{TIH}$ as the thermal objective**. This follows the idea of compact placement-quality objectives, such as wirelength and congestion in chip placement [[5]](#references). In the RL setting the regression head would be removed. The trained encoder would provide the state, and the selected objectives could help define the reward.
+
+## Conclusion
+
+**RQ1 – Transferability:** ✅ **Yes.** An edge-aware GINE encoder, inspired by VLSI placement methods, can be adapted to power module layout graphs. It learns representations that predict selected thermal and electrical performance indicators.
+
+**RQ2 – Representation capability:** ✅ **Yes, with limits.** The learned embeddings contain information about physically relevant layout properties. For $L_{\mathrm{loop}}$ this information is very strong. This makes the encoder a promising candidate for an RL state representation.
+
+Overall, the research questions are answered **positively but with limitations**. The thesis does not prove that the representation is already sufficient for closed-loop reinforcement learning, because no policy network, reward function, placement environment or PPO training was implemented. The encoder developed here should be seen as a **first step toward an RL-based optimization framework for power electronic module layouts**.
+
 ## Limitations and Future Work
 
-- **Absolute temperature targets** ($T_\text{max}$, $T_\text{avg}$, …) depend on thermal boundary conditions (power loss, ambient temperature, convection) that are not yet part of the graph input.
+- **Absolute temperature targets** need thermal boundary conditions (power loss, ambient temperature, convection) as part of the graph input.
 - **Dataset size and diversity.** Larger and more balanced datasets are needed, covering more netlist families, chip counts, rotations and boundary conditions.
 - **More robust evaluation.** Netlist-based cross-validation and ablation studies of the graph representation.
 - **Rotation-invariant modeling**, instead of relying on data augmentation alone.
