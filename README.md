@@ -47,8 +47,10 @@ flowchart LR
     Z -.-> V["Value network"]
     P -.-> A["Placement action"]
     A -.-> L
+    P -.-> U["PPO update"]
+    V -.-> U
     classDef future stroke-dasharray: 5 5
-    class P,V,A future
+    class P,V,A,U future
 ```
 <sub>Dashed components belong to a future RL framework and are not implemented in this thesis.</sub>
 
@@ -70,11 +72,10 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    A["Raw layout, simulation<br/>and metadata files"] --> B["Preprocessing"]
-    B --> C["Graph construction<br/>(nodes = components,<br/>edges = connections)"]
-    C --> D["Feature encoding<br/>and normalization"]
-    D --> E["Supervised GINE<br/>encoder training"]
-    E --> F["Graph-level<br/>state embedding"]
+    A["Input layout data"] --> B["Data preprocessing"]
+    B --> D["Feature encoding<br/>and normalization"]
+    D --> E["Supervised GNN<br/>encoder training"]
+    E --> F["Learned graph-level<br/>state embedding"]
 ```
 
 ### Layout as a graph
@@ -99,6 +100,7 @@ flowchart LR
     EE --> G
     G --> PL["Pooling<br/>(add / mean / max)"]
     G --> EM["Edge MLP<br/>→ mean edge summary"]
+    EF --> EM
     G --> CM["Current-component<br/>embedding"]
     M["Metadata"] --> ME["Metadata MLP"]
     PL --> Z["Concat → state embedding z"]
