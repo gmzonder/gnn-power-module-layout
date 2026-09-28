@@ -201,14 +201,14 @@ $$y_i = \left( D_{\mathrm{lin,norm}},\ F_{TH},\ F_{TIH},\ L_{\mathrm{loop}} \rig
 
 ## Key Results
 
-> **Strong validation performance:** With z-score normalization, the multi-target encoder reaches a **validation R² above 0.80 for all four targets**, and up to **0.999 for the loop inductance $L_{\mathrm{loop}}$**.
+> **Strong validation performance:** With z-score normalization, the multi-target encoder reaches a **validation R² above 0.80 for all four targets**. For the loop inductance $L_{\mathrm{loop}}$, the validation R² is **0.994–0.999** across all normalization methods.
 
 - **Graph encoders transfer to power modules.** An edge-aware GINE encoder learns meaningful relationships between layout graphs and physical targets (RQ1).
 - **Loop inductance is captured very well.** $L_{\mathrm{loop}}$ reached a **validation R² of 0.994–0.999**, depending on the normalization.
 - **One shared embedding for several objectives.** The multi-target model predicts reliability, thermal and electrical metrics at the same time, which is what a future RL state representation needs (RQ2).
 - **Data split and layout grouping affect the results.** A manually defined split was used to reduce leakage between structurally similar layouts, because similar layouts in both training and validation can overestimate generalization. Even under the same settings, the prediction behavior **differs between netlist groups** and depends on the chip configuration. The composition of the training data therefore has to be considered when building and evaluating the model.
 - **Normalization matters.** Z-score normalization depends on the statistics of the training split and was the most consistent. Min-max depends on the chosen target bounds and compressed predictions into narrow bands when the data did not cover the full target range.
-- **Rotation robustness must be learned.** A model trained on one orientation formed separate prediction clusters for rotated layouts. Adding rotated variants to training fixed this for an unseen 90° orientation.
+- **Rotation robustness must be learned.** A model trained on one orientation formed separate prediction clusters for rotated layouts. Adding rotated variants to training improved the predictions on an unseen 90° orientation.
 - **Consistent best configuration.** The best HPO configurations all used a **hidden dimension of 64, 2 GINE layers and MAE loss**. They differed in pooling and dropout.
 
 **Best HPO configuration per normalization method (validation):**
@@ -279,12 +279,14 @@ Python · PyTorch · PyTorch Geometric [[10]](#references) · NumPy · pandas ·
 
 ```bibtex
 @mastersthesis{oender2026gnnencoder,
-  author = {Gamze {\"O}nder},
-  title  = {Investigations into the Application of Graph Neural Network Encoder
-            for Component Placement in the Context of Power Module Layout Optimization},
-  school = {Kiel University of Applied Sciences},
-  year   = {2026},
-  type   = {Master's Thesis}
+  author  = {Gamze {\"O}nder},
+  title   = {Investigations into the Application of Graph Neural Network Encoder
+             for Component Placement in the Context of Power Module Layout Optimization},
+  school  = {Kiel University of Applied Sciences},
+  address = {Kiel, Germany},
+  year    = {2026},
+  type    = {Master's Thesis},
+  note    = {Unpublished}
 }
 ```
 
@@ -307,7 +309,3 @@ A selection of the main references. The full bibliography is in the thesis.
 ## Acknowledgements
 
 I thank my supervisors **Prof. Dr. Patrick Hennig** and **Prof. Dr. Ulf Schümann**, and my advisor **Rando Raßmann (M.Eng.)**, for their guidance and support throughout this thesis.
-
-## Contact
-
-Questions about the thesis are welcome. Please reach out via my [GitHub profile](https://github.com/gmzonder).
