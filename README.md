@@ -62,10 +62,20 @@ The thesis focuses on the **encoder stage** of a future RL framework. The encode
 
 ```mermaid
 flowchart LR
-    A["Input layout data"] --> B["Data preprocessing"]
-    B --> D["Feature encoding<br/>and normalization"]
-    D --> E["Supervised GNN<br/>encoder training"]
-    E --> F["Learned graph-level<br/>state embedding"]
+    A("Input layout data") --> B("Data preprocessing")
+    B --> D("Feature encoding<br/>and normalization")
+    D --> E("Supervised GNN<br/>encoder training")
+    E --> F("Learned graph-level<br/>state embedding")
+    classDef input fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20,stroke-width:1.5px,font-weight:bold
+    classDef prep fill:#EDE7F6,stroke:#7E57C2,color:#4A148C,stroke-width:1.5px,font-weight:bold
+    classDef feat fill:#E0F7FA,stroke:#00838F,color:#006064,stroke-width:1.5px,font-weight:bold
+    classDef train fill:#E3F2FD,stroke:#1E88E5,color:#0D47A1,stroke-width:1.5px,font-weight:bold
+    classDef out fill:#F5F5F5,stroke:#424242,color:#212121,stroke-width:1.5px,font-weight:bold
+    class A input
+    class B prep
+    class D feat
+    class E train
+    class F out
 ```
 
 ### Layout as a graph
