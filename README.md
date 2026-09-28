@@ -39,20 +39,10 @@ Power module layouts are harder than VLSI placement in one important way. Their 
 
 The thesis focuses on the **encoder stage** of a future RL framework. The encoder is pretrained with supervised learning to predict simulation-derived thermal and electrical layout metrics. The full RL loop (policy and value networks, reward design, PPO training) is outside the scope of this work.
 
-```mermaid
-flowchart LR
-    L["Power module layout<br/>(graph observation)"] --> E["GNN encoder<br/>(this thesis)"]
-    E --> Z["State embedding z_t"]
-    Z -.-> P["Policy network"]
-    Z -.-> V["Value network"]
-    P -.-> A["Placement action"]
-    A -.-> L
-    P -.-> U["PPO update"]
-    V -.-> U
-    classDef future stroke-dasharray: 5 5
-    class P,V,A,U future
-```
-<sub>Dashed components belong to a future RL framework and are not implemented in this thesis.</sub>
+<p align="center">
+  <img src="figures/rl_integration.png" alt="Integration of the GNN encoder into a future RL framework" width="650">
+</p>
+<p align="center"><sub>The GNN encoder (this thesis) turns the layout observation into the state embedding. Policy network, value network and PPO are standard RL components and are not implemented in this thesis.</sub></p>
 
 ## Research Questions
 
@@ -92,23 +82,14 @@ Each layout is converted into a graph:
 
 The main encoder is a **GINE** (Graph Isomorphism Network with Edge features) network [[7, 8]](#references), which uses edge attributes directly in message passing. GraphSAGE [[9]](#references) is used as a baseline.
 
-```mermaid
-flowchart LR
-    NF["Node features"] --> NE["Node encoder"]
-    EF["Edge features"] --> EE["Edge encoder"]
-    NE --> G["GINEConv layers<br/>(edge-aware message passing)"]
-    EE --> G
-    G --> PL["Pooling<br/>(add / mean / max)"]
-    G --> EM["Edge MLP<br/>→ mean edge summary"]
-    EF --> EM
-    G --> CM["Current-component<br/>embedding"]
-    M["Metadata"] --> ME["Metadata MLP"]
-    PL --> Z["Concat → state embedding z"]
-    EM --> Z
-    CM --> Z
-    ME --> Z
-    Z --> H["Regression head<br/>(pretraining only)"]
-```
+![GINE-based encoder architecture](figures/architecture.png)
+
+<details>
+<summary><b>Detailed architecture (tensor shapes and layers)</b></summary>
+
+![Detailed GINE-based encoder architecture](figures/architecture_detailed.png)
+
+</details>
 
 The final state embedding combines four parts:
 
