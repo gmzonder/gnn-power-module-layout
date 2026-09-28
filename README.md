@@ -179,7 +179,7 @@ class GINEStateEncoder(nn.Module):
 - Adam optimizer [[11]](#references), learning-rate scheduler, early stopping on validation MAE
 - Loss functions: MAE, MSE, Smooth L1 / Huber
 - Target normalization: none, z-score, min-max
-- Leakage-aware, group-based train / validation / test splits (structurally similar layouts are kept in the same split)
+- Predefined train / validation / test splits to reduce leakage between structurally similar layouts; normalization is fitted on the training split only
 - Metrics (MAE, RMSE, R²) are computed on the original physical scale
 
 ## Experiments
@@ -206,8 +206,8 @@ $$y_i = \left( D_{\mathrm{lin,norm}},\ F_{TH},\ F_{TIH},\ L_{\mathrm{loop}} \rig
 - **Graph encoders transfer to power modules.** An edge-aware GINE encoder learns meaningful relationships between layout graphs and physical targets (RQ1).
 - **Loop inductance is captured very well.** $L_{\mathrm{loop}}$ reached a **validation R² of 0.994–0.999**, depending on the normalization.
 - **One shared embedding for several objectives.** The multi-target model predicts reliability, thermal and electrical metrics at the same time, which is what a future RL state representation needs (RQ2).
-- **Grouped data splits are essential.** Layouts derived from the same netlist, or rotated versions of the same layout, are structurally very similar. With a random split they end up in both training and validation, which leaks information and overestimates performance. The data was therefore split by **layout groups**, and all normalization statistics were fitted on the training split only.
-- **Normalization matters.** Target normalization strongly affects multi-target learning. Z-score normalization was the most consistent. Min-max compressed predictions into narrow bands when the data did not cover the full target range.
+- **Data split and layout grouping affect the results.** A manually defined split was used to reduce leakage between structurally similar layouts, because similar layouts in both training and validation can overestimate generalization. Even under the same settings, the prediction behavior **differs between netlist groups** and depends on the chip configuration. The composition of the training data therefore has to be considered when building and evaluating the model.
+- **Normalization matters.** Z-score normalization depends on the statistics of the training split and was the most consistent. Min-max depends on the chosen target bounds and compressed predictions into narrow bands when the data did not cover the full target range.
 - **Rotation robustness must be learned.** A model trained on one orientation formed separate prediction clusters for rotated layouts. Adding rotated variants to training fixed this for an unseen 90° orientation.
 - **Consistent best configuration.** The best HPO configurations all used a **hidden dimension of 64, 2 GINE layers and MAE loss**. They differed in pooling and dropout.
 
